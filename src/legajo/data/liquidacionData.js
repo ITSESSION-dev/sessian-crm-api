@@ -1,10 +1,5 @@
-﻿// LEGAJO.AR â€” Capa de datos: arma la entrada del motor de liquidaciÃ³n y guarda el recibo.
-const { query } = require('../../config/database');
+﻿const { query } = require('../../config/database');
 
-// ReÃºne todos los parÃ¡metros que necesita liquidacion.liquidar() para un empleado/perÃ­odo.
-// - bÃ¡sico: escala vigente de la categorÃ­a (<= Ãºltimo dÃ­a del perÃ­odo); si es fuera de
-//   convenio, se usa basico_manual.
-// Devuelve null si el empleado no existe en el tenant.
 async function getInput(tenantId, empleadoId, periodo) {
   const { rows } = await query(
     `SELECT e.fecha_ingreso, e.afiliado_sindicato, e.convenio_id, e.categoria_id, e.basico_manual,
@@ -55,7 +50,24 @@ async function getInput(tenantId, empleadoId, periodo) {
   };
 }
 
-// Guarda (o actualiza) el recibo del perÃ­odo. Upsert por (tenant, empleado, periodo, tipo).
+async function getHorasExtrasAprobadas(tenantId, empleadoId, periodo) {
+  const { rows } = await query(
+    `SELECT tipo, COALESCE(SUM(cantidad), 0) AS horas
+       FROM legajo.hora_extra
+      WHERE tenant_id = $1 AND empleado_id = $2 AND estado = 'APROBADA'
+        AND to_char(fecha, 'YYYY-MM') = $3
+      GROUP BY tipo`,
+    [tenantId, empleadoId, periodo]
+  );
+  let horasExtra50 = 0;
+  let horasExtra100 = 0;
+  for (const r of rows) {
+    if (Number(r.tipo) === 50) horasExtra50 = Number(r.horas);
+    else if (Number(r.tipo) === 100) horasExtra100 = Number(r.horas);
+  }
+  return { horasExtra50, horasExtra100 };
+}
+
 async function guardar(tenantId, empleadoId, periodo, tipo, recibo) {
   const { rows } = await query(
     `INSERT INTO legajo.liquidacion
@@ -79,4 +91,4 @@ async function guardar(tenantId, empleadoId, periodo, tipo, recibo) {
   return rows[0].id;
 }
 
-module.exports = { getInput, guardar };
+module.exports = { getInput, guardar, getHorasExtrasAprobadas };

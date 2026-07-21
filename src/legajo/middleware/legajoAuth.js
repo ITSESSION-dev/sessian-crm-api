@@ -1,11 +1,5 @@
-﻿// LEGAJO.AR â€” AutorizaciÃ³n por rol de producto.
-// Se aplica DESPUÃ‰S del authenticate del CRM (que ya deja req.user y req.tenantId).
-// Carga el rol de Legajo del usuario desde legajo.acceso y lo deja en req.legajo.
-const { query } = require('../../config/database');
+﻿const { query } = require('../../config/database');
 
-// Carga { rol, empleadoId, supervisorId } del usuario actual dentro del tenant.
-// Bootstrap: si no tiene fila en legajo.acceso pero es 'admin' del CRM, se le da
-// rol ADMIN (para que el admin del tenant pueda configurar Legajo por primera vez).
 async function loadLegajoRole(req, res, next) {
   try {
     const { rows } = await query(
@@ -31,7 +25,6 @@ async function loadLegajoRole(req, res, next) {
   }
 }
 
-// Gate por rol de Legajo. Uso: requireLegajoRole('ADMIN','RRHH')
 const requireLegajoRole = (...roles) => (req, res, next) => {
   if (!req.legajo || !roles.includes(req.legajo.rol)) {
     return res.status(403).json({ error: 'Sin permisos para esta acciÃ³n en Legajo.ar' });
@@ -39,4 +32,9 @@ const requireLegajoRole = (...roles) => (req, res, next) => {
   next();
 };
 
-module.exports = { loadLegajoRole, requireLegajoRole };
+function empleadoObjetivo(req) {
+  if (req.legajo && req.legajo.rol === 'EMPLEADO') return req.legajo.empleadoId;
+  return (req.body && req.body.empleadoId) || (req.legajo && req.legajo.empleadoId) || null;
+}
+
+module.exports = { loadLegajoRole, requireLegajoRole, empleadoObjetivo };
